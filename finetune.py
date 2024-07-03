@@ -103,22 +103,23 @@ def train(
     ), "Please specify a --base_model, e.g. --base_model='VietAI/gpt-j-6B-vietnamese-news'"
 
     gradient_accumulation_steps = batch_size // micro_batch_size
+    
     if load_in_8bit: bf16 = False # nếu load 8 bit thì buộc phải dùng bf16
-    device_map = {"": int(os.environ.get("CUDA_DEVICE") or 0)}
+    device_map = "mps"
+   
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     ddp = world_size != 1
-
+    
     if ddp: # huấn luyện đa GPUs
         device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
         gradient_accumulation_steps = gradient_accumulation_steps // world_size
-
+    
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
-        load_in_8bit=load_in_8bit,
-        torch_dtype=torch.float16,
-        device_map=device_map,
+        load_in_8bit=False,
+        torch_dtype=torch.float16
     )
-
+    model = model.to("mps")
     if finetune_method == "lora":
         print(model.state_dict) # in ra model state để lựa chọn cho lora
 
@@ -148,9 +149,11 @@ def train(
     def generate_and_tokenize_prompt(data_point):
         full_prompt = generate_prompt(data_point)
         return tokenize(full_prompt)
-
+    print("aaabc")
     model = prepare_model_for_int8_training(model)
+    print("aaa")
     model = get_peft_model(model, config)
+    
 
     if data_path.endswith(".jsonl"):
         data = load_dataset("json", data_files=data_path)
@@ -227,7 +230,12 @@ def train(
         model = torch.compile(model)
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
-    model = model.to("cuda")
+    # them cho m2
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device=torch.device("cuda")
+    model = model.to(device)
     model.save_pretrained(output_dir)
 
 

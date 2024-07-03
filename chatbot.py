@@ -6,7 +6,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from prompt import make_prompt
 
 BASE_MODEL = "VietAI/gpt-neo-1.3B-vietnamese-news"
-PEFT_WEIGHTS = "path/to/prefix_gpt-neo-1.3B-1e"
+PEFT_WEIGHTS = "./prefix_gpt-neo-1.3B-1e"
 load_in_8bit = False
 
 if torch.cuda.is_available():
@@ -18,7 +18,11 @@ if torch.cuda.is_available():
     else:
         model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, device_map=device_map)
         model = PeftModel.from_pretrained(model, PEFT_WEIGHTS, device_map=device_map)
-else:
+elif torch.backends.mps.is_available():
+    device="mps"
+    model = AutoModelForCausalLM.from_pretrained(BASE_MODEL,device_map=device)
+    model = PeftModel.from_pretrained(model, PEFT_WEIGHTS,device_map=device)
+else:    
     device = "cpu"
     model = AutoModelForCausalLM.from_pretrained(BASE_MODEL)
     model = PeftModel.from_pretrained(model, PEFT_WEIGHTS)
